@@ -137,51 +137,13 @@ fn owner_of(token_id: u64) -> Result<Principal> {
 
 #[update(name = "transferFromDip721")]
 fn transfer_from(from: Principal, to: Principal, token_id: u64) -> Result {
-    STATE.with(|state| {
-        let mut state = state.borrow_mut();
-        let state = &mut *state;
-        let nft = state
-            .nfts
-            .get_mut(usize::try_from(token_id)?)
-            .ok_or(Error::InvalidTokenId)?;
-        let caller = api::caller();
-        if nft.owner != caller
-            && nft.approved != Some(caller)
-            && !state
-                .operators
-                .get(&from)
-                .map(|s| s.contains(&caller))
-                .unwrap_or(false)
-            && !state.custodians.contains(&caller)
-        {
-            Err(Error::Unauthorized)
-        } else if nft.owner != from {
-            Err(Error::Other)
-        } else {
-            nft.approved = None;
-            nft.owner = to;
-            Ok(state.next_txid())
-        }
-    })
-}
-
-#[update(name = "safeTransferFromDip721")]
-fn safe_transfer_from(from: Principal, to: Principal, token_id: u64) -> Result {
-    if to == MGMT {
-        Err(Error::ZeroAddress)
-    } else {
-        transfer_from(from, to, token_id)
-    }
+    //Transferring is not allowed since it's a social nft
+    return Err(Error::Unauthorized);
 }
 
 #[query(name = "supportedInterfacesDip721")]
 fn supported_interfaces() -> &'static [InterfaceId] {
-    &[
-        InterfaceId::TransferNotification,
-        InterfaceId::Approval, // Psychedelic/DIP721#5
-        InterfaceId::Burn,
-        InterfaceId::Mint,
-    ]
+    &[InterfaceId::Mint]
 }
 
 #[export_name = "canister_query logoDip721"]
@@ -227,7 +189,6 @@ fn get_metadata(token_id: u64) -> Result<String, Error> {
     })
 }
 
-// bnz7o-iuaaa-aaaaa-qaaaa-cai
 #[query(name = "getMetadataForUserDip721")]
 fn get_metadata_for_user() -> String {
     ic_cdk::setup();
@@ -263,122 +224,6 @@ fn get_metadata_for_user() -> String {
             return Ok(format!("{} {}", "data:image/png;base64,", base64_image));
         })
         .unwrap_or_else(|e| e)
-}
-
-// ----------------------
-// notification interface
-// ----------------------
-
-#[update(name = "transferFromNotifyDip721")]
-fn transfer_from_notify(from: Principal, to: Principal, token_id: u64, data: Vec<u8>) -> Result {
-    let res = transfer_from(from, to, token_id)?;
-    if let Ok(arg) = Encode!(&api::caller(), &from, &token_id, &data) {
-        // Using call_raw ensures we don't need to await the future for the call to be executed.
-        // Calling an arbitrary function like this means that a malicious recipient could call
-        // transferFromNotifyDip721 in their onDIP721Received function, resulting in an infinite loop.
-        // This will trap eventually, but the transfer will have already been completed and the state-change persisted.
-        // That means the original transfer must reply before that happens, or the caller will be
-        // convinced that the transfer failed when it actually succeeded. So we don't await the call,
-        // so that we'll reply immediately regardless of how long the notification call takes.
-        let _ = api::call::call_raw(to, "onDIP721Received", arg, 0);
-    }
-    Ok(res)
-}
-
-#[update(name = "safeTransferFromNotifyDip721")]
-fn safe_transfer_from_notify(
-    from: Principal,
-    to: Principal,
-    token_id: u64,
-    data: Vec<u8>,
-) -> Result {
-    if to == MGMT {
-        Err(Error::ZeroAddress)
-    } else {
-        transfer_from_notify(from, to, token_id, data)
-    }
-}
-
-// ------------------
-// approval interface
-// ------------------
-
-#[update(name = "approveDip721")]
-fn approve(user: Principal, token_id: u64) -> Result {
-    STATE.with(|state| {
-        let mut state = state.borrow_mut();
-        let state = &mut *state;
-        let caller = api::caller();
-        let nft = state
-            .nfts
-            .get_mut(usize::try_from(token_id)?)
-            .ok_or(Error::InvalidTokenId)?;
-        if nft.owner != caller
-            && nft.approved != Some(caller)
-            && !state
-                .operators
-                .get(&user)
-                .map(|s| s.contains(&caller))
-                .unwrap_or(false)
-            && !state.custodians.contains(&caller)
-        {
-            Err(Error::Unauthorized)
-        } else {
-            nft.approved = Some(user);
-            Ok(state.next_txid())
-        }
-    })
-}
-
-#[update(name = "setApprovalForAllDip721")]
-fn set_approval_for_all(operator: Principal, is_approved: bool) -> Result {
-    STATE.with(|state| {
-        let mut state = state.borrow_mut();
-        let caller = api::caller();
-        if operator != caller {
-            let operators = state.operators.entry(caller).or_default();
-            if operator == MGMT {
-                if !is_approved {
-                    operators.clear();
-                } else {
-                    // cannot enable everyone as an operator
-                }
-            } else {
-                if is_approved {
-                    operators.insert(operator);
-                } else {
-                    operators.remove(&operator);
-                }
-            }
-        }
-        Ok(state.next_txid())
-    })
-}
-
-// #[query(name = "getApprovedDip721")] // Psychedelic/DIP721#5
-fn _get_approved(token_id: u64) -> Result<Principal> {
-    STATE.with(|state| {
-        let approved = state
-            .borrow()
-            .nfts
-            .get(usize::try_from(token_id)?)
-            .ok_or(Error::InvalidTokenId)?
-            .approved
-            .unwrap_or_else(api::caller);
-        Ok(approved)
-    })
-}
-
-#[query(name = "isApprovedForAllDip721")]
-fn is_approved_for_all(operator: Principal) -> bool {
-    STATE.with(|state| {
-        state
-            .borrow()
-            .operators
-            .get(&api::caller())
-            .map(|s| s.contains(&operator))
-            .unwrap_or(false)
-    })
 }
 
 // --------------

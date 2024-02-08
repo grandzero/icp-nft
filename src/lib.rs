@@ -34,7 +34,6 @@ const MGMT: Principal = Principal::from_slice(&[]);
 
 thread_local! {
     static STATE: RefCell<State> = RefCell::default();
-    static BASE_URL: RefCell<String> = RefCell::default();
 }
 
 //Prepares and serializes the canister's state before an upgrade, ensuring no data is lost during the upgrade process.
@@ -62,11 +61,9 @@ fn init(args: InitArgs) {
         state.name = args.name;
         state.symbol = args.symbol;
         state.logo = args.logo;
+        state.base_url = url;
     });
     // Set base url for redirect
-    BASE_URL.with(|base_url| {
-        *base_url.borrow_mut() = url;
-    });
 }
 
 // --------------
@@ -75,11 +72,12 @@ fn init(args: InitArgs) {
 #[update(name = "set_base_url")]
 fn set_base_url(url: String) {
     // Check if user is custodian
-    if !STATE.with(|state| state.borrow().custodians.contains(&api::caller())) {
-        return;
-    }
-    BASE_URL.with(|base_url| {
-        *base_url.borrow_mut() = url;
+
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        if state.custodians.contains(&api::caller()) {
+            state.base_url = url;
+        }
     });
 }
 
@@ -96,6 +94,31 @@ fn balance_of(user: Principal) -> u64 {
             .iter()
             .filter(|n| n.owner == user)
             .count() as u64
+    })
+}
+
+// --------------
+// change nft info
+// --------------
+#[update(name = "change_nft_info")]
+fn change_nft_info(metadata: MetadataDesc) -> Result<String, Error> {
+    STATE.with(|state| {
+        let mut state = state.borrow_mut();
+        let state = &mut *state;
+        let nft = state
+            .nfts
+            .iter_mut()
+            .find(|n| n.owner == api::caller())
+            // .get_mut(usize::try_from(token_id)?)
+            .ok_or(Error::InvalidTokenId)?;
+        let caller = api::caller();
+        if nft.owner != caller {
+            Err(Error::Unauthorized)
+        } else {
+            nft.approved = None;
+            nft.metadata = metadata;
+            Ok("Transaction successful".to_string())
+        }
     })
 }
 
@@ -208,7 +231,7 @@ fn get_metadata(token_id: u64) -> Result<String, Error> {
 #[query(name = "getMetadataForUserDip721")]
 fn get_metadata_for_user() -> String {
     ic_cdk::setup();
-    ic_cdk::println!("get_metadata_for_user");
+
     // let user = call::arg_data::<(Principal,)>().0;
     STATE
         .with(|state| {
@@ -220,12 +243,7 @@ fn get_metadata_for_user() -> String {
                 return Err("No NFT found for user".to_string());
             }
             // Concat url with nft.id
-            let url = format!(
-                "{}/nft/{}",
-                BASE_URL.with(|base_url| base_url.borrow().clone()),
-                token_id
-            );
-            // let url = format!("https://example.com/nft/{}", token_id);
+            let url = format!("{}/nft/{}", state.base_url, token_id);
             let code = QrCode::new(url.as_bytes()).map_err(|_| "Failed to create QR code")?;
 
             let image = code.render::<Luma<u8>>().build();
@@ -242,7 +260,7 @@ fn get_metadata_for_user() -> String {
             // Encode the byte vector (now filled with the PNG data) into a base64 string
             let base64_image = encode(&png_bytes); // Encode directly from Vec<u8> without needing to dereference cursor
 
-            return Ok(base64_image);
+            return Ok(format!("{} {}", "data:image/png;base64,", base64_image));
         })
         .unwrap_or_else(|e| e)
 }
@@ -371,7 +389,6 @@ fn is_approved_for_all(operator: Principal) -> bool {
 fn mint(
     // _to: Principal,
     metadata: MetadataDesc,
-    _blob_content: Vec<u8>,
 ) -> Result<MintResult, ConstrainedError> {
     let (txid, tkid) = STATE.with(|state| {
         let mut state = state.borrow_mut();

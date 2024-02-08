@@ -26,6 +26,7 @@ pub struct State {
     pub name: String,
     pub symbol: String,
     pub txid: u128,
+    pub base_url: String,
 }
 
 #[derive(CandidType, Deserialize)]
@@ -116,7 +117,7 @@ pub enum Error {
     Other,
 }
 
-#[derive(CandidType, Deserialize, Serialize, Clone)]
+#[derive(CandidType, Deserialize, Serialize, Clone, Debug)]
 pub struct Socials {
     pub twitter: Option<String>,
     pub instagram: Option<String>,

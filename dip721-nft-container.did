@@ -151,8 +151,9 @@ service : (InitArgs) -> {
     setApprovalForAllDip721 : (operator : principal, isApproved : bool) -> (TxReceipt);
     getApprovedDip721 : (token_id : nat64) -> (TxReceipt) query;
     isApprovedForAllDip721 : (operator : principal) -> (bool) query;
-    mintDip721 : ( metadata : MetadataDesc, blobContent : blob) -> (MintReceipt);
+    mintDip721 : ( metadata : MetadataDesc) -> (MintReceipt);
     burnDip721 : (token_id : nat64) -> (TxReceipt);
+    change_nft_info : (metadata: MetadataDesc) -> (Result);
     set_base_url: (url: text) -> ();
     set_name : (name : text) -> (ManageResult);
     set_symbol : (sym : text) -> (ManageResult);

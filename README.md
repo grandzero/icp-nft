@@ -49,7 +49,7 @@ NFT Transfer is not allowed. Every user can mint one nft and store their datas i
 - **`symbol()`**: Returns the symbol of the NFT collection.
 - **`total_supply()`**: Returns the total number of NFTs minted.
 - **`supported_interfaces()`**: Lists the supported interfaces (DIP721 standards).
-- **`get_metadata(token_id: u64)`**: Retrieves metadata(Social links) for a specific NFT.
+- **`get_metadata(token_id: u64)`**: Retrieves metadata(Social links) for a specific NFT. Returns social links as serialized json.
 - **`get_metadata_for_user()`**: Retrieves metadata as qrcode (format for qrcode data will be like [BASE_URL]/nft/[TOKEN_ID]) for all NFTs owned by a user. One principal can mint only one nft
 
 #### Customization Functions

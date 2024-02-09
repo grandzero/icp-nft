@@ -8,7 +8,7 @@ extern crate serde;
 mod types;
 
 use base64::encode;
-use candid::{Encode, Principal};
+use candid::Principal;
 use ic_cdk::{
     api::{self, call},
     export::candid,
@@ -136,7 +136,7 @@ fn owner_of(token_id: u64) -> Result<Principal> {
 }
 
 #[update(name = "transferFromDip721")]
-fn transfer_from(from: Principal, to: Principal, token_id: u64) -> Result {
+fn transfer_from(_from: Principal, _to: Principal, _token_id: u64) -> Result {
     //Transferring is not allowed since it's a social nft
     return Err(Error::Unauthorized);
 }
